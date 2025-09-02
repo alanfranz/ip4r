@@ -1,62 +1,50 @@
 name: Build
-
 on:
   push:
-    branches: [ master ]
-    tags:     [ REL_* ]
+    branches: [master]
+    tags: [REL_*]
   pull_request:
-    branches: [ master ]
-
+    branches: [master]
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
     defaults:
       run:
         shell: sh
-
     strategy:
       matrix:
-        pgver:  [ 13, 14, 15, 16, 17 ]
-        include:
-          - pgrepo: ""
-          - pgver: 18
-            pgrepo: "-pgdg-snapshot"
-
+        pgver: [13, 14, 15, 16, 17, 18]
     env:
-      PG:       ${{ matrix.pgver }}
-      PGREPO:   ${{ matrix.pgrepo }}
-
+      PG: ${{ matrix.pgver }}
     steps:
-    - name: checkout
-      uses: actions/checkout@v3
-
-    - name: cleanup pg
-      run: |
-        sudo apt-get -y install build-essential curl ca-certificates sudo lsb-release ubuntu-minimal
-	sudo install -d /usr/share/postgresql-common/pgdg
-	sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
-
-        sudo apt-get -y --purge --no-upgrade remove postgresql libpq-dev libpq5 postgresql-client-common postgresql-common || true
-	. /etc/os-release
-	sudo sh -c "echo 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $VERSION_CODENAME-pgdg main 18' > /etc/apt/sources.list.d/pgdg.list"
-        sudo apt-get update -qq
-        sudo rm -rf /var/lib/postgresql
-
-    - name: install pg
-      run: |
-        sudo apt-get -y \
-               -o Dpkg::Options::=--force-confdef \
-               -o Dpkg::Options::=--force-confnew \
-               ${PGREPO:+-t "$(lsb_release -cs)$PGREPO"} \
-               install postgresql-${PG:?} postgresql-server-dev-${PG:?}
-        sudo -u postgres createuser -s "$USER"
-
-    - name: build and test
-      run: |
-        make && sudo -E make install && time make installcheck
-
-    - name: show output
-      if: always()
-      run: |
-        cat regression.diffs || true
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: cleanup pg
+        run: |
+          set -eux
+          sudo apt-get -y update
+          sudo apt-get -y --purge --no-upgrade remove postgresql libpq-dev libpq5 postgresql-client-common postgresql-common || true
+          sudo apt-get -y install build-essential curl ca-certificates sudo lsb-release ubuntu-minimal gpg
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --batch --yes --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+          sudo ls -l /usr/share/postgresql-common/pgdg
+          . /etc/os-release
+          echo ${VERSION_CODENAME}
+          sudo sh -c "echo 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main 18' > /etc/apt/sources.list.d/pgdg.list"
+          sudo ls -l /usr/share/postgresql-common/pgdg
+          sudo apt-get update
+          sudo rm -rf /var/lib/postgresql
+      - name: install pg
+        run: |
+          sudo apt-get -y \
+                 -o Dpkg::Options::=--force-confdef \
+                 -o Dpkg::Options::=--force-confnew \
+                 install postgresql-${PG:?} postgresql-server-dev-${PG:?}
+          sudo -u postgres createuser -s "$USER"
+      - name: build and test
+        run: |
+          make && sudo -E make install && time make installcheck
+      - name: show output
+        if: always()
+        run: |
+          cat regression.diffs || true
