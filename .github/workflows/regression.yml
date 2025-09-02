@@ -33,10 +33,13 @@ jobs:
 
     - name: cleanup pg
       run: |
-        sudo apt-get -y --purge --no-upgrade remove postgresql libpq-dev libpq5 postgresql-client-common postgresql-common
-        curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-        sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" >/etc/apt/sources.list.d/pgdg.list'
-        sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg-snapshot main 18" >/etc/apt/sources.list.d/pgdg-snap.list'
+        sudo apt-get -y install build-essential curl ca-certificates sudo lsb-release ubuntu-minimal
+	sudo install -d /usr/share/postgresql-common/pgdg
+	sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+
+        sudo apt-get -y --purge --no-upgrade remove postgresql libpq-dev libpq5 postgresql-client-common postgresql-common || true
+	. /etc/os-release
+	sudo sh -c "echo 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $VERSION_CODENAME-pgdg main 18' > /etc/apt/sources.list.d/pgdg.list"
         sudo apt-get update -qq
         sudo rm -rf /var/lib/postgresql
 
